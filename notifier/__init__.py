@@ -1,0 +1,1 @@
+"""ccCue notifier package."""

@@ -7,3 +7,7 @@ logs/*.log
 *.egg-info/
 dist/
 build/
+
+# ccCue specific
+config/settings.json
+*.log

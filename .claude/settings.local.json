@@ -11,7 +11,25 @@
       "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest src/tests/ -v -W all 2>&1)",
       "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest -v -W all 2>&1)",
       "Bash(where claude:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && mkdir -p hooks notifier/ui notifier/utils installer config tests)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && python -m pytest tests/ -v --tb=short 2>&1 | head -100)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && pip install pytest -q && python -m pytest tests/ -v --tb=short 2>&1 | head -100)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && echo '{\"hook_event_name\":\"Stop\",\"message\":\"Test completed\",\"session_id\":\"test123\"}' | python hooks/notify_hook.py && echo \"Hook script exit code: $?\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && echo '{\"hook_event_name\":\"Stop\",\"message\":\"Test completed\",\"session_id\":\"test123\"}' | python hooks/notify_hook.py -v 2>&1; echo \"Exit code: $?\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && python3 -c \"from notifier.server import MAX_BODY_SIZE; print\\('MAX_BODY_SIZE:', MAX_BODY_SIZE\\)\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && python -c \"from notifier.server import MAX_BODY_SIZE; print\\(MAX_BODY_SIZE\\)\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && python -c \"\nfrom notifier.ui.overlay import OverlayWidget\no = OverlayWidget\\(\\)\nprint\\('fade_in_animation:', hasattr\\(o, 'fade_in_animation'\\)\\)\nprint\\('dismiss_timer:', hasattr\\(o, 'dismiss_timer'\\)\\)\n\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && uv venv)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && uv pip install -r requirements.txt)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && uv pip install pytest)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && .venv/Scripts/python -m pytest tests/test_server.py -v --tb=short 2>&1 | head -80)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && .venv/Scripts/python -m pytest tests/test_events.py -v --tb=short 2>&1)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && .venv/Scripts/python -m pytest tests/test_hook.py -v --tb=short 2>&1)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && .venv/Scripts/python -m pytest tests/ -v 2>&1)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && timeout 3 .venv/Scripts/python -m notifier.main 2>&1 || true)",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && echo '{\"hook_event_name\":\"Stop\",\"message\":\"Test completed\",\"session_id\":\"test123\"}' | python hooks/notify_hook.py && echo \"Hook script executed successfully\")",
+      "Bash(cd \"D:/sikm/Desktop/PythonProject/AI-Tool/ccCue\" && .venv/Scripts/python -m pytest tests/ -v --tb=short 2>&1 | tail -20)"
     ]
   }
 }
