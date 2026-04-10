@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && mkdir -p src/common src/wrapper src/notifier src/tests config logs)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && pip install -r requirements.txt pytest httpx 2>&1 | tail -5)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && uv venv && uv pip install -r requirements.txt pytest httpx 2>&1 | tail -10)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest src/tests/ -v 2>&1)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest src/tests/test_rule_engine.py src/tests/test_event_detector.py src/tests/test_server.py -v 2>&1)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m py_compile src/common/constants.py && .venv/Scripts/python -m py_compile src/common/models.py && .venv/Scripts/python -m py_compile src/common/config.py && .venv/Scripts/python -m py_compile src/common/logger.py && .venv/Scripts/python -m py_compile src/wrapper/launcher.py && .venv/Scripts/python -m py_compile src/wrapper/client.py && .venv/Scripts/python -m py_compile src/wrapper/event_detector.py && .venv/Scripts/python -m py_compile src/wrapper/rule_engine.py && .venv/Scripts/python -m py_compile src/notifier/server.py && .venv/Scripts/python -m py_compile src/notifier/overlay.py && .venv/Scripts/python -m py_compile src/notifier/main.py && .venv/Scripts/python -m py_compile src/notifier/sound.py && .venv/Scripts/python -m py_compile src/notifier/window_focus.py && .venv/Scripts/python -m py_compile src/notifier/tray.py && echo \"ALL OK\")",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest src/tests/test_rule_engine.py src/tests/test_event_detector.py src/tests/test_server.py -v -W all 2>&1)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest src/tests/ -v -W all 2>&1)",
+      "Bash(cd \"D:\\\\sikm\\\\Desktop\\\\PythonProject\\\\AI-Tool\\\\claudecode提醒助手\" && .venv/Scripts/python -m pytest -v -W all 2>&1)",
+      "Bash(where claude:*)",
+      "WebSearch"
+    ]
+  }
+}

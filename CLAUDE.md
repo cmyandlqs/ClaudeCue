@@ -1,90 +1,195 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 项目概述
 
-## Project Overview
+ccCue 是为 Claude Code 开发的 Windows 平台辅助工具，核心目标是提供：
 
-Claude Code 提醒助手 — 一个 Windows 桌面通知工具，在 Claude Code 后台运行时主动提醒用户（权限拦截、任务完成、等待输入等）。平台为 Windows + Windows Terminal。
+1. **终端侧的对话历史导航能力**（第二优先级）
+2. **全局置顶的桌面提醒层**（第一优先级）
 
-## Architecture
+当前聚焦于第 2 项：在 Claude Code 后台运行、任务完成、等待输入、权限拦截等时机及时唤醒用户。
 
-双进程架构，通过本地 HTTP 通信：
+## 平台约束
+
+- **仅支持 Windows 平台**
+- **主运行环境：Windows Terminal**
+
+## 架构决策：放弃 Wrapper，采用 Hooks
+
+### 已废弃的方案
+
+原先的 `wrapper` 方案已确认不可行：
+
+```text
+wrapper -> 启动 claude -> 接管 stdout/stderr -> 规则匹配 -> 通知 UI
+```
+
+**失败原因**：
+- Claude Code 是交互式 CLI，需要真实 TTY
+- `subprocess.Popen(stdout=PIPE, stderr=PIPE)` 会剥离终端交互环境
+- 在这种模式下，Claude Code 无法作为正常工作流稳定运行
+- 这不是小修小补能解决的问题
+
+### 新架构：基于 Claude Code 原生 Hooks
+
+```text
+Claude Code 正常运行
+  -> 官方 hooks 触发
+  -> 本地 hook 脚本读取 stdin JSON
+  -> 统一事件格式
+  -> POST 到 notifier-app
+  -> notifier-app 展示悬浮窗 / 托盘 / 声音 / 聚焦
+```
+
+## 项目结构
 
 ```
-cc-wrapper (监听进程)          notifier-app (常驻桌面进程)
-├── launcher.py  启动 Claude Code     ├── server.py    HTTP 服务 (POST /events, GET /health)
-├── stream_reader.py  读取 stdout/stderr  ├── overlay.py   置顶悬浮窗
-├── event_detector.py  状态机+去重       ├── tray.py      系统托盘
-├── rule_engine.py  规则匹配           ├── sound.py     提醒声音
-├── client.py  HTTP 发送事件          └── window_focus.py  终端窗口聚焦
-└── main.py
+ccCue/
+├── hooks/               # Claude Code hook 脚本
+│   └── notify_hook.py   # 读取 hook JSON，转发到 notifier
+├── notifier/            # 桌面展示层
+│   ├── main.py          # 入口
+│   ├── server.py        # 本地 HTTP 接口
+│   ├── overlay.py       # 悬浮提醒窗
+│   ├── tray.py          # 系统托盘
+│   ├── sound.py         # 提示音
+│   └── window_focus.py  # 聚焦终端
+├── installer/           # Windows 安装脚本
+│   └── install.bat      # 一键配置
+├── 需求.md              # 项目需求
+├── 方案设计.md          # 架构设计
+├── 第一阶段开发文档.md   # 开发计划
+└── AGENTS.md            # Agent 指引
 ```
 
-- `src/common/` — 共享模型（事件类型、级别）、配置、日志、常量
-- `src/wrapper/` — Claude Code 包装启动器，负责进程管理和输出监听
-- `src/notifier/` — 常驻 PySide6 桌面程序，负责悬浮提醒、托盘、声音、窗口聚焦
-- `config/` — YAML 配置文件（`app.yaml` + `rules.yaml`）
-- `src/tests/` — 单元测试和集成测试
+## 核心组件职责
 
-## Tech Stack
+### 1. Hook 层 (`hooks/`)
 
-- Python 3.x + PySide6
-- 本地 HTTP 通信（默认 `127.0.0.1:45872`）
-- 配置格式：YAML
+**职责**：
+- 接收 Claude Code hook payload（通过 stdin）
+- 将不同 hook 事件映射成统一事件模型
+- 调用本地 HTTP 接口转发给 notifier
 
-## Key Design Decisions
+**不负责**：
+- 长生命周期 UI
+- 复杂状态持有
+- 终端进程控制
 
-- **事件模型**：所有模块间传递标准事件对象（含 event_id、event_type、severity、timestamps），禁止传裸字符串
-- **事件类型**：`task_completed` | `needs_input` | `permission_blocked` | `error_detected` | `idle_timeout` | `process_started` | `process_exited`
-- **严重级别**：`info`（自动消失）| `warning`（停留）| `critical`（置顶常驻）
-- **规则引擎**：基于 `contains` / `regex` / `any_of` 匹配，规则可配置，内置默认规则 + 外部 `rules.yaml` 覆盖
-- **去重**：同 event_type 30 秒内只提醒一次，状态切换后允许再次提醒
-- **降级**：notifier 未启动时 wrapper 仅写本地日志不阻断；HTTP 发送失败有限重试后降级
+### 2. Notifier 展示层 (`notifier/`)
 
-## Event Object Structure
+**职责**：
+- 常驻后台进程
+- 提供本地 HTTP 接口接收 hook 事件
+- 展示悬浮提醒
+- 托盘驻留
+- 播放提示音
+- 支持点击后聚焦回 Windows Terminal
+
+### 3. 安装与配置层 (`installer/`)
+
+**职责**：
+- 写入或引导用户更新 `~/.claude/settings.json`
+- 注册 `Notification`、`Stop` 等 hooks
+- 提供 Windows 友好的一键配置脚本
+
+## 统一事件模型
+
+Hook 层与 notifier 层之间采用统一的 JSON 格式：
 
 ```json
 {
   "event_id": "uuid",
-  "event_type": "permission_blocked",
-  "severity": "critical",
-  "title": "...",
-  "message": "...",
-  "source": "cc-wrapper",
-  "session_id": "...",
-  "process_id": 12345,
-  "terminal_hint": { "window_title": "...", "cwd": "..." },
-  "match": { "rule_id": "...", "pattern": "...", "sample_text": "..." },
-  "timestamps": { "occurred_at": "...", "sent_at": "..." },
-  "display": { "sticky": true, "play_sound": true, "timeout_ms": 0 }
+  "event_type": "needs_input",
+  "severity": "warning",
+  "title": "Claude Code 等待输入",
+  "message": "请回到终端继续交互",
+  "source": "claude-hook",
+  "session_id": "",
+  "timestamps": {
+    "occurred_at": ""
+  },
+  "display": {
+    "sticky": true,
+    "play_sound": true,
+    "timeout_ms": 0
+  }
 }
 ```
 
-## Running
+## 第一阶段开发计划
 
-```bash
-# 1. 先启动 notifier 常驻程序
-python src/notifier/main.py
+### 目标
 
-# 2. 再通过 wrapper 启动 Claude Code
-python src/wrapper/main.py
+形成可运行的最小闭环：
+
+```text
+Claude Code hooks
+  -> hook 转发脚本
+  -> notifier 本地 HTTP 服务
+  -> 悬浮提醒展示
 ```
 
-## API Endpoints (notifier-app)
+### 里程碑
 
-- `POST /events` — 接收标准事件
-- `GET /health` — 健康检查
-- `POST /focus` — 调试终端聚焦
+#### M1: 协议与 hooks 配置
+- 整理 Claude hooks 事件
+- 确认统一事件模型
+- 形成 settings.json 配置样例
 
-## Development Milestones
+#### M2: Hook 转发脚本
+- 从 stdin 读取 hook payload
+- 映射为本地统一事件
+- POST 到 notifier 本地服务
 
-- **M1**：基础骨架（notifier HTTP 服务 + 测试悬浮窗）
-- **M2**：包装器与事件发送（启动 Claude Code + 输出监听 + 事件上报）
-- **M3**：规则识别 MVP（task_completed / needs_input / permission_blocked + 去重）
-- **M4**：增强提醒（error_detected / idle_timeout / 声音 / 点击返回终端）
+#### M3: Notifier MVP
+- 本地 HTTP 接口
+- 悬浮提醒
+- 托盘与声音
 
-## Reference Docs
+#### M4: Windows 安装体验
+- 一键安装脚本
+- 配置落盘
+- 运行说明与排错说明
 
-- `需求.md` — 原始需求
-- `方案设计.md` — 多方案对比与选型依据
-- `第一阶段开发文档.md` — 完整的第一阶段设计文档（模块职责、接口、状态机、配置、测试计划）
+### 明确不做
+
+以下内容不再属于第一阶段实现范围：
+- wrapper 启动 Claude
+- stdout/stderr 抓取
+- 基于终端文本规则匹配事件
+- 伪终端或兼容性补丁式方案
+
+## 推荐的 Hook 事件
+
+第一阶段优先支持：
+- `notification` - 通知消息
+- `stop` - 任务停止
+- `permission_required` - 权限请求
+- `needs_input` - 等待用户输入
+
+后续可扩展：
+- `pre_tool_use` / `post_tool_use`
+- 更细粒度的任务阶段事件
+
+## 开发规则
+
+1. **代码与文档同步**：如果代码和文档不一致，优先更新文档
+2. **职责分离**：不耦合 hook 解析直接到 UI 组件
+3. **本地通信**：使用 localhost HTTP 在 hooks 和 notifier 之间通信
+4. **小步提交**：使用架构范围的小提交，如 `docs: switch plan to hooks` 或 `feat: add notification hook bridge`
+
+## 测试策略
+
+第一阶段测试重点：
+1. hook payload 到统一事件的映射测试
+2. notifier HTTP 接口测试
+3. 展示层的非 GUI 逻辑测试
+4. Windows 配置脚本的手工验证
+
+## 当前状态
+
+- 旧 wrapper 实现已删除
+- 仓库处于文档驱动的重置状态
+- 下一轮实现将基于 hook 架构从零开始
+- 不复用 wrapper 模块
