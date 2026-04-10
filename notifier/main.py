@@ -15,7 +15,7 @@ from .server import NotifierServer
 from .ui.overlay import OverlayWidget
 from .ui.tray import TrayIcon
 from .utils.sound import play_notification_sound
-from .utils.window_focus import focus_windows_terminal
+from .utils.window_focus import focus_windows_terminal, bind_session_to_active_terminal
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +102,11 @@ class NotifierApp:
         message = event.get("message", "")
         severity = event.get("severity", "info")
         display = event.get("display", {})
+        session_id = str(event.get("session_id", "")).strip()
+
+        # Best-effort binding so popup click can focus the matching terminal.
+        if session_id:
+            bind_session_to_active_terminal(session_id)
 
         # Play sound
         if display.get("play_sound", True):
@@ -113,15 +118,16 @@ class NotifierApp:
             title,
             message,
             timeout_ms,
-            severity
+            severity,
+            event
         )
 
         self.events_displayed += 1
         logger.debug(f"Displayed notification: {title}")
 
-    def _on_overlay_click(self):
+    def _on_overlay_click(self, event: dict | None = None):
         """Handle overlay click - focus terminal."""
-        focus_windows_terminal()
+        focus_windows_terminal(event)
 
     def _on_quit(self):
         """Handle quit request."""

@@ -4,9 +4,9 @@ Displays toast-style notifications with fade in/out animations.
 """
 import logging
 from PySide6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGraphicsDropShadowEffect, QFrame
 )
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QCursor, QColor
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class OverlayWidget(QWidget):
 
     # Default dimensions
     WIDTH = 420
-    HEIGHT = 120
+    HEIGHT = 138
 
     # Animation durations (ms)
     FADE_IN_DURATION = 200
@@ -41,6 +41,7 @@ class OverlayWidget(QWidget):
         self.fade_in_animation = None
         self.fade_out_animation = None
         self.dismiss_timer = None  # Timer for auto-dismiss
+        self.current_event = {}
         self.setup_ui()
 
     def setup_ui(self):
@@ -67,37 +68,59 @@ class OverlayWidget(QWidget):
         self.container = QWidget()
         self.container.setObjectName("notificationContainer")
 
-        # Apply dark theme styling
+        # macOS-inspired light card style
         self.container.setStyleSheet("""
             #notificationContainer {
-                background-color: rgba(30, 30, 30, 245);
-                border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background-color: rgba(248, 248, 250, 242);
+                border-radius: 14px;
+                border: 1px solid rgba(0, 0, 0, 0.08);
             }
         """)
 
         # Drop shadow effect
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 100))
-        shadow.setOffset(0, 4)
+        shadow.setBlurRadius(30)
+        shadow.setColor(QColor(0, 0, 0, 55))
+        shadow.setOffset(0, 8)
         self.container.setGraphicsEffect(shadow)
 
         # Layout
         layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(8)
+
+        # Header: traffic lights + app text
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
+
+        for dot_color in ("#FF5F57", "#FEBC2E", "#28C840"):
+            dot = QFrame()
+            dot.setFixedSize(9, 9)
+            dot.setStyleSheet(
+                f"background-color: {dot_color}; border-radius: 4px; border: 1px solid rgba(0,0,0,0.12);"
+            )
+            header_layout.addWidget(dot)
+
+        header_layout.addSpacing(8)
+        self.app_label = QLabel("ccCue")
+        self.app_label.setStyleSheet("color: rgba(60, 60, 67, 0.68);")
+        self.app_label.setFont(QFont("SF Pro Text", 9))
+        header_layout.addWidget(self.app_label)
+        header_layout.addStretch()
+
+        layout.addLayout(header_layout)
 
         # Title label
         self.title_label = QLabel()
         self.title_label.setObjectName("titleLabel")
         self.title_label.setStyleSheet("""
             #titleLabel {
-                color: white;
+                color: rgba(28, 28, 30, 0.95);
                 font-weight: bold;
             }
         """)
-        self.title_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        self.title_label.setFont(QFont("SF Pro Display", 12, QFont.Bold))
         self.title_label.setWordWrap(True)
 
         # Message label
@@ -105,10 +128,10 @@ class OverlayWidget(QWidget):
         self.message_label.setObjectName("messageLabel")
         self.message_label.setStyleSheet("""
             #messageLabel {
-                color: rgba(255, 255, 255, 0.85);
+                color: rgba(60, 60, 67, 0.92);
             }
         """)
-        self.message_label.setFont(QFont("Segoe UI", 10))
+        self.message_label.setFont(QFont("SF Pro Text", 10))
         self.message_label.setWordWrap(True)
 
         layout.addWidget(self.title_label)
@@ -124,7 +147,8 @@ class OverlayWidget(QWidget):
         title: str,
         message: str,
         duration: int = 5000,
-        severity: str = "info"
+        severity: str = "info",
+        event_payload: dict | None = None
     ):
         """
         Show a notification.
@@ -141,13 +165,14 @@ class OverlayWidget(QWidget):
             self.dismiss_timer = None
 
         # Set content
+        self.current_event = event_payload or {}
         self.title_label.setText(title)
         self.message_label.setText(message)
 
         # Apply severity styling
         self._apply_severity_style(severity)
 
-        # Position window at bottom-right corner
+        # Position window at top-right corner
         self._position_window()
 
         # Show window
@@ -166,26 +191,27 @@ class OverlayWidget(QWidget):
     def _apply_severity_style(self, severity: str):
         """Apply styling based on severity level."""
         border_colors = {
-            "info": "rgba(100, 150, 255, 0.5)",
-            "warning": "rgba(255, 180, 50, 0.5)",
-            "error": "rgba(255, 80, 80, 0.5)"
+            "info": "rgba(100, 180, 255, 0.8)",
+            "warning": "rgba(255, 170, 54, 0.85)",
+            "error": "rgba(255, 69, 58, 0.9)"
         }
 
         border_color = border_colors.get(severity, border_colors["info"])
         self.container.setStyleSheet(f"""
             #notificationContainer {{
-                background-color: rgba(30, 30, 30, 245);
-                border-radius: 12px;
-                border: 1px solid {border_color};
+                background-color: rgba(248, 248, 250, 242);
+                border-radius: 14px;
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                border-left: 4px solid {border_color};
             }}
         """)
 
     def _position_window(self):
-        """Position window at bottom-right corner of screen."""
+        """Position window at top-right corner of screen."""
         screen = self.screen().availableGeometry()
         self.move(
             screen.right() - self.WIDTH - self.MARGIN,
-            screen.bottom() - self.HEIGHT - self.MARGIN
+            screen.top() + self.MARGIN
         )
 
     def _fade_in(self):
@@ -216,7 +242,11 @@ class OverlayWidget(QWidget):
         """Handle mouse click - dismiss and focus terminal."""
         # Call focus callback if provided
         if self.focus_callback:
-            self.focus_callback()
+            try:
+                self.focus_callback(self.current_event)
+            except TypeError:
+                # Backward compatibility for old callback signatures.
+                self.focus_callback()
 
         # Close the notification
         self.fade_out()
