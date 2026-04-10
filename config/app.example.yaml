@@ -1,0 +1,32 @@
+server:
+  host: 127.0.0.1
+  port: 45872
+
+overlay:
+  position: bottom_right
+  width: 360
+  height: 120
+  opacity: 0.96
+  always_on_top: true
+  auto_close_ms_info: 5000
+  auto_close_ms_warning: 0
+  auto_close_ms_critical: 0
+
+sound:
+  enabled: true
+  warning_sound: default
+  critical_sound: default
+
+idle:
+  suspected_after_sec: 60
+  notify_after_sec: 120
+
+focus:
+  enabled: true
+  terminal_window_title_keywords:
+    - "Claude"
+    - "Windows Terminal"
+
+logging:
+  level: INFO
+  dir: logs

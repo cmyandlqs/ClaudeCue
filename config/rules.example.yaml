@@ -1,0 +1,51 @@
+# 事件识别规则配置
+# match_type: contains | regex | any_of
+# applies_to: stdout, stderr
+
+- id: permission.keyword.01
+  enabled: true
+  event_type: permission_blocked
+  severity: critical
+  match_type: contains
+  pattern: "Claude wants to"
+  applies_to:
+    - stdout
+    - stderr
+
+- id: permission.keyword.02
+  enabled: true
+  event_type: permission_blocked
+  severity: critical
+  match_type: any_of
+  pattern: "allow,deny,permission,approval"
+  applies_to:
+    - stdout
+    - stderr
+
+- id: input.keyword.01
+  enabled: true
+  event_type: needs_input
+  severity: warning
+  match_type: regex
+  pattern: "(?i)(press enter|waiting for|continue\\?)"
+  applies_to:
+    - stdout
+    - stderr
+
+- id: task.completed.01
+  enabled: true
+  event_type: task_completed
+  severity: info
+  match_type: regex
+  pattern: "(?i)(completed|finished|done|all tasks)"
+  applies_to:
+    - stdout
+
+- id: error.keyword.01
+  enabled: true
+  event_type: error_detected
+  severity: critical
+  match_type: any_of
+  pattern: "error,fatal,exception,crash"
+  applies_to:
+    - stderr
