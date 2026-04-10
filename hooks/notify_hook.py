@@ -9,6 +9,7 @@ import sys
 import json
 import urllib.request
 import urllib.error
+import ctypes
 from typing import Dict, Callable, Optional
 
 # Notifier service configuration
@@ -18,6 +19,88 @@ NOTIFIER_URL = f"http://127.0.0.1:{NOTIFIER_PORT}/event"
 REQUEST_TIMEOUT = 0.5
 # Maximum stdin read size (1 MB - more than enough for hook events)
 MAX_STDIN_READ = 1024 * 1024
+
+TERMINAL_CLASS_HINTS = (
+    "cascadia_hosting_window_class",
+    "cascadiahost",
+    "consolewindowclass",
+)
+
+TERMINAL_TITLE_HINTS = (
+    "windows terminal",
+    "powershell",
+    "command prompt",
+    "cmd",
+    "claude",
+)
+
+
+def _get_foreground_window_handle() -> Optional[int]:
+    """Get current foreground window handle on Windows."""
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = int(user32.GetForegroundWindow())
+        if hwnd > 0:
+            return hwnd
+    except Exception:
+        return None
+    return None
+
+
+def _get_window_pid(hwnd: int) -> Optional[int]:
+    """Get process id for a window handle."""
+    try:
+        user32 = ctypes.windll.user32
+        pid = ctypes.c_ulong(0)
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(pid))
+        if pid.value > 0:
+            return int(pid.value)
+    except Exception:
+        return None
+    return None
+
+
+def _get_window_text(hwnd: int) -> str:
+    """Get window title text."""
+    try:
+        user32 = ctypes.windll.user32
+        length = user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd))
+        if length <= 0:
+            return ""
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(ctypes.c_void_p(hwnd), buf, length + 1)
+        return buf.value or ""
+    except Exception:
+        return ""
+
+
+def _get_class_name(hwnd: int) -> str:
+    """Get window class name."""
+    try:
+        user32 = ctypes.windll.user32
+        buf = ctypes.create_unicode_buffer(256)
+        length = user32.GetClassNameW(ctypes.c_void_p(hwnd), buf, 256)
+        if length > 0:
+            return buf.value or ""
+    except Exception:
+        return ""
+    return ""
+
+
+def _looks_like_terminal_window(class_name: str, title: str) -> bool:
+    """Heuristic check whether current foreground window is a terminal."""
+    c = (class_name or "").strip().lower()
+    t = (title or "").strip().lower()
+
+    for hint in TERMINAL_CLASS_HINTS:
+        if hint in c:
+            return True
+
+    for hint in TERMINAL_TITLE_HINTS:
+        if hint in t:
+            return True
+
+    return False
 
 
 def map_hook_to_event(hook_data: Dict) -> Dict:
@@ -151,6 +234,23 @@ def map_hook_to_event(hook_data: Dict) -> Dict:
         "session_id": session_id,
         "source": "claude-hook"
     })
+
+    # Add terminal hwnd hint captured at hook time (best-effort).
+    # This is much more reliable than notifier-side "current foreground" guessing.
+    hwnd_hint = _get_foreground_window_handle()
+    if hwnd_hint:
+        class_hint = _get_class_name(hwnd_hint)
+        title_hint = _get_window_text(hwnd_hint)
+
+        # Only keep hint when foreground window itself is terminal-like.
+        if _looks_like_terminal_window(class_hint, title_hint):
+            event["terminal_hwnd_hint"] = hwnd_hint
+            pid_hint = _get_window_pid(hwnd_hint)
+            if pid_hint:
+                event["terminal_pid_hint"] = pid_hint
+            if title_hint:
+                event["terminal_title_hint"] = title_hint
+            event["terminal_class_hint"] = class_hint
 
     return event
 

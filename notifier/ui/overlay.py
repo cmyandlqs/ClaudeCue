@@ -137,6 +137,18 @@ class OverlayWidget(QWidget):
         layout.addWidget(self.title_label)
         layout.addWidget(self.message_label)
 
+        # Shortcut hint row
+        self.shortcut_hint_label = QLabel("快捷键: 回到终端")
+        self.shortcut_hint_label.setStyleSheet("color: rgba(60, 60, 67, 0.68);")
+        self.shortcut_hint_label.setFont(QFont("SF Pro Text", 8))
+        layout.addWidget(self.shortcut_hint_label)
+
+    def set_hotkey_hint(self, hotkey_label: str):
+        """Update shortcut hint text displayed in popup."""
+        if not hotkey_label:
+            hotkey_label = "未注册"
+        self.shortcut_hint_label.setText(f"快捷键: {hotkey_label} 回到终端")
+
         # Main layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
