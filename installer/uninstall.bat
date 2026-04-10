@@ -4,21 +4,22 @@ setlocal
 set "PROJECT_ROOT=%~dp0.."
 
 echo ========================================
-echo ccCue Installer (CLI Wrapper)
+echo ccCue Uninstaller (CLI Wrapper)
 echo ========================================
 echo.
 
 pushd "%PROJECT_ROOT%"
-python -m cli.main install --project-root "%PROJECT_ROOT%"
+python -m cli.main uninstall
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
+
 if %EXIT_CODE% NEQ 0 (
     echo.
-    echo ERROR: install failed.
+    echo ERROR: uninstall failed.
     pause
     exit /b %EXIT_CODE%
 )
 
 echo.
-echo Install completed.
+echo Uninstall completed.
 pause

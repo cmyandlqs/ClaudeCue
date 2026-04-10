@@ -1,14 +1,13 @@
-"""
+﻿"""
 Tests for event mapping and event model.
 """
 import json
-import pytest
 from sys import path
 
 # Add parent directory to path for imports
 path.insert(0, ".")
 
-from notifier.event_models import NotificationEvent, EventType, Severity, DisplayConfig
+from notifier.event_models import NotificationEvent, DisplayConfig
 
 
 class TestNotificationEvent:
@@ -112,7 +111,6 @@ class TestHookMapping:
 
     def test_notification_hook_mapping(self):
         """Test mapping Notification hook to event."""
-        # Import here to avoid import errors if hooks module has issues
         from hooks.notify_hook import map_hook_to_event
 
         hook_data = {
@@ -139,7 +137,7 @@ class TestHookMapping:
 
         event = map_hook_to_event(hook_data)
         assert event["event_type"] == "stop"
-        assert event["title"] == "任务完成"
+        assert "task" in event["title"].lower() or "任务" in event["title"]
         assert "completed" in event["message"].lower() or "完成" in event["message"]
 
     def test_permission_request_mapping(self):
@@ -154,7 +152,7 @@ class TestHookMapping:
 
         event = map_hook_to_event(hook_data)
         assert event["event_type"] == "permission_request"
-        assert event["title"] == "权限请求"
+        assert "permission" in event["title"].lower() or "权限" in event["title"]
         assert "Bash" in event["message"]
         assert event["display"]["sticky"] is True
         assert event["display"]["timeout_ms"] == 0

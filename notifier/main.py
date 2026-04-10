@@ -10,6 +10,7 @@ import sys
 import logging
 import signal
 import time
+import os
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 import ctypes
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QAbstractNativeEventFilter, QCoreApplication
 
 from .server import NotifierServer
+from .single_instance import SingleInstanceGuard
 from .ui.overlay import OverlayWidget
 from .ui.tray import TrayIcon
 from .utils.sound import play_notification_sound
@@ -45,8 +47,12 @@ HOTKEY_CANDIDATES = [
 
 def configure_logging() -> Path:
     """Configure console + file logging."""
-    project_root = Path(__file__).resolve().parents[1]
-    log_dir = project_root / "logs"
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        log_dir = Path(local_app_data) / "ccCue" / "logs"
+    else:
+        project_root = Path(__file__).resolve().parents[1]
+        log_dir = project_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "notifier.log"
 
@@ -305,8 +311,16 @@ class NotifierApp:
 
 def main():
     """Entry point for the notifier application."""
-    app = NotifierApp()
-    sys.exit(app.start())
+    guard = SingleInstanceGuard()
+    if not guard.acquire():
+        logger.info("Notifier already running; exiting duplicate instance.")
+        sys.exit(0)
+
+    try:
+        app = NotifierApp()
+        sys.exit(app.start())
+    finally:
+        guard.release()
 
 
 if __name__ == "__main__":

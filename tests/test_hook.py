@@ -1,12 +1,15 @@
-"""
-Tests for the hook forwarding script.
-"""
-import json
-import pytest
+"""Tests for the hook forwarding script."""
+from __future__ import annotations
+
+import subprocess
 import sys
-from io import StringIO
+from pathlib import Path
 
 from hooks.notify_hook import map_hook_to_event
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+HOOK_SCRIPT = PROJECT_ROOT / "hooks" / "notify_hook.py"
+PYTHON_EXE = sys.executable
 
 
 class TestHookMapper:
@@ -148,46 +151,36 @@ class TestHookScript:
 
     def test_main_exits_successfully(self):
         """Test that main() exits with code 0."""
-        import subprocess
-
-        # Test with valid JSON input
         result = subprocess.run(
-            ["python", "hooks/notify_hook.py"],
+            [PYTHON_EXE, str(HOOK_SCRIPT)],
             input='{"hook_event_name":"Stop","session_id":"test"}',
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
 
-        # Should exit 0 even if notifier is not running
         assert result.returncode == 0
 
     def test_main_handles_invalid_json(self):
         """Test that main() handles invalid JSON gracefully."""
-        import subprocess
-
         result = subprocess.run(
-            ["python", "hooks/notify_hook.py"],
+            [PYTHON_EXE, str(HOOK_SCRIPT)],
             input='not valid json',
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
 
-        # Should exit 0, not crash
         assert result.returncode == 0
 
     def test_main_handles_empty_input(self):
         """Test that main() handles empty input."""
-        import subprocess
-
         result = subprocess.run(
-            ["python", "hooks/notify_hook.py"],
-            input='',
+            [PYTHON_EXE, str(HOOK_SCRIPT)],
+            input="",
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
 
-        # Should exit 0
         assert result.returncode == 0

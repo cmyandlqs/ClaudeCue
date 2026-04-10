@@ -1,23 +1,24 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Claude Code hook forwarder for ccCue notifier.
+Claude Code hook mapper and forwarder for ccCue notifier.
 
-Reads hook events from stdin, maps them to unified event format,
-and forwards them to the local notifier service via HTTP.
+This module provides:
+- map_hook_to_event: maps raw hook JSON to unified event payload.
+- send_event: forwards event to local notifier HTTP endpoint.
+- main: legacy direct hook entry point (no bootstrap).
 """
-import sys
-import json
-import urllib.request
-import urllib.error
+from __future__ import annotations
+
 import ctypes
-from typing import Dict, Callable, Optional
+import json
+import sys
+import urllib.error
+import urllib.request
+from typing import Callable, Dict, Optional
 
-# Notifier service configuration
 NOTIFIER_PORT = 19527
 NOTIFIER_URL = f"http://127.0.0.1:{NOTIFIER_PORT}/event"
-# Timeout in seconds - hooks should not block Claude
 REQUEST_TIMEOUT = 0.5
-# Maximum stdin read size (1 MB - more than enough for hook events)
 MAX_STDIN_READ = 1024 * 1024
 
 TERMINAL_CLASS_HINTS = (
@@ -89,160 +90,163 @@ def _get_class_name(hwnd: int) -> str:
 
 def _looks_like_terminal_window(class_name: str, title: str) -> bool:
     """Heuristic check whether current foreground window is a terminal."""
-    c = (class_name or "").strip().lower()
-    t = (title or "").strip().lower()
+    c_name = (class_name or "").strip().lower()
+    title = (title or "").strip().lower()
 
     for hint in TERMINAL_CLASS_HINTS:
-        if hint in c:
+        if hint in c_name:
             return True
 
     for hint in TERMINAL_TITLE_HINTS:
-        if hint in t:
+        if hint in title:
             return True
 
     return False
 
 
+def _mapper_notification(data: Dict) -> Dict:
+    return {
+        "event_type": "notification",
+        "title": data.get("title", "Claude Code"),
+        "message": data.get("message", ""),
+        "severity": "info",
+        "display": {"timeout_ms": 5000},
+    }
+
+
+def _mapper_stop(data: Dict) -> Dict:
+    return {
+        "event_type": "stop",
+        "title": "Task Completed",
+        "message": "Claude Code completed the task.",
+        "severity": "info",
+        "display": {"timeout_ms": 3000},
+    }
+
+
+def _mapper_stop_failure(data: Dict) -> Dict:
+    return {
+        "event_type": "notification",
+        "title": "Task Failed",
+        "message": "Claude Code task execution failed.",
+        "severity": "error",
+        "display": {"timeout_ms": 5000, "sticky": True},
+    }
+
+
+def _mapper_permission_request(data: Dict) -> Dict:
+    tool_name = data.get("tool_name", "tool")
+    return {
+        "event_type": "permission_request",
+        "title": "Permission Request",
+        "message": f"Claude needs permission to use {tool_name}",
+        "severity": "warning",
+        "display": {"timeout_ms": 0, "sticky": True},
+    }
+
+
+def _mapper_permission_denied(data: Dict) -> Dict:
+    tool_name = data.get("tool_name", "tool")
+    return {
+        "event_type": "notification",
+        "title": "Permission Denied",
+        "message": f"Tool execution denied: {tool_name}",
+        "severity": "warning",
+        "display": {"timeout_ms": 3000},
+    }
+
+
+def _mapper_pre_tool_use(data: Dict) -> Dict:
+    tool_name = data.get("tool_name", "tool")
+    return {
+        "event_type": "notification",
+        "title": "Running Tool",
+        "message": f"Executing: {tool_name}",
+        "severity": "info",
+        "display": {"play_sound": False, "timeout_ms": 2000},
+    }
+
+
+def _mapper_post_tool_use_failure(data: Dict) -> Dict:
+    tool_name = data.get("tool_name", "tool")
+    error = data.get("error", "Unknown error")
+    return {
+        "event_type": "notification",
+        "title": "Tool Failed",
+        "message": f"{tool_name}: {error}",
+        "severity": "error",
+        "display": {"timeout_ms": 5000},
+    }
+
+
+def _mapper_task_created(data: Dict) -> Dict:
+    subject = data.get("subject", "")
+    return {
+        "event_type": "notification",
+        "title": "Task Created",
+        "message": f"Created task: {subject}",
+        "severity": "info",
+        "display": {"play_sound": False, "timeout_ms": 2000},
+    }
+
+
+def _mapper_task_completed(data: Dict) -> Dict:
+    subject = data.get("subject", "")
+    return {
+        "event_type": "notification",
+        "title": "Task Completed",
+        "message": f"Completed: {subject}",
+        "severity": "info",
+        "display": {"timeout_ms": 3000},
+    }
+
+
+def _mapper_elicitation(data: Dict) -> Dict:
+    return {
+        "event_type": "needs_input",
+        "title": "Input Required",
+        "message": data.get("message", "Claude Code needs your input."),
+        "severity": "warning",
+        "display": {"timeout_ms": 0, "sticky": True},
+    }
+
+
 def map_hook_to_event(hook_data: Dict) -> Dict:
-    """
-    Map Claude Code hook payload to unified event format.
-
-    Args:
-        hook_data: Raw hook payload from Claude Code
-
-    Returns:
-        Unified event dictionary
-    """
+    """Map Claude Code hook payload to unified event format."""
     event_name = hook_data.get("hook_event_name", "")
     session_id = hook_data.get("session_id", "")
 
-    # Event-specific mappers
     mappers: Dict[str, Callable[[Dict], Dict]] = {
-        "Notification": lambda d: {
-            "event_type": "notification",
-            "title": d.get("title", "Claude Code"),
-            "message": d.get("message", ""),
-            "severity": "info",
-            "display": {
-                "timeout_ms": 5000
-            }
-        },
-        "Stop": lambda d: {
-            "event_type": "stop",
-            "title": "任务完成",
-            "message": "Claude Code 已完成任务",
-            "severity": "info",
-            "display": {
-                "timeout_ms": 3000
-            }
-        },
-        "StopFailure": lambda d: {
-            "event_type": "notification",
-            "title": "任务失败",
-            "message": "Claude Code 任务执行失败",
-            "severity": "error",
-            "display": {
-                "timeout_ms": 5000,
-                "sticky": True
-            }
-        },
-        "PermissionRequest": lambda d: {
-            "event_type": "permission_request",
-            "title": "权限请求",
-            "message": f"Claude 需要权限使用 {d.get('tool_name', 'tool')}",
-            "severity": "warning",
-            "display": {
-                "timeout_ms": 0,  # Don't auto-close
-                "sticky": True
-            }
-        },
-        "PermissionDenied": lambda d: {
-            "event_type": "notification",
-            "title": "权限被拒绝",
-            "message": f"工具调用被拒绝: {d.get('tool_name', 'tool')}",
-            "severity": "warning",
-            "display": {
-                "timeout_ms": 3000
-            }
-        },
-        "PreToolUse": lambda d: {
-            "event_type": "notification",
-            "title": "执行工具",
-            "message": f"正在执行: {d.get('tool_name', 'tool')}",
-            "severity": "info",
-            "display": {
-                "play_sound": False,  # Don't play sound for every tool
-                "timeout_ms": 2000
-            }
-        },
-        "PostToolUseFailure": lambda d: {
-            "event_type": "notification",
-            "title": "工具执行失败",
-            "message": f"{d.get('tool_name', 'tool')}: {d.get('error', 'Unknown error')}",
-            "severity": "error",
-            "display": {
-                "timeout_ms": 5000
-            }
-        },
-        "TaskCreated": lambda d: {
-            "event_type": "notification",
-            "title": "任务创建",
-            "message": f"已创建任务: {d.get('subject', '')}",
-            "severity": "info",
-            "display": {
-                "play_sound": False,
-                "timeout_ms": 2000
-            }
-        },
-        "TaskCompleted": lambda d: {
-            "event_type": "notification",
-            "title": "任务完成",
-            "message": f"已完成: {d.get('subject', '')}",
-            "severity": "info",
-            "display": {
-                "timeout_ms": 3000
-            }
-        },
-        "Elicitation": lambda d: {
-            "event_type": "needs_input",
-            "title": "需要输入",
-            "message": d.get("message", "Claude Code 需要您的输入"),
-            "severity": "warning",
-            "display": {
-                "timeout_ms": 0,
-                "sticky": True
-            }
-        }
+        "Notification": _mapper_notification,
+        "Stop": _mapper_stop,
+        "StopFailure": _mapper_stop_failure,
+        "PermissionRequest": _mapper_permission_request,
+        "PermissionDenied": _mapper_permission_denied,
+        "PreToolUse": _mapper_pre_tool_use,
+        "PostToolUseFailure": _mapper_post_tool_use_failure,
+        "TaskCreated": _mapper_task_created,
+        "TaskCompleted": _mapper_task_completed,
+        "Elicitation": _mapper_elicitation,
     }
 
-    # Get mapper for this event type
-    mapper = mappers.get(event_name, lambda d: {
-        "event_type": "notification",
-        "title": event_name,
-        "message": f"Claude Code 事件: {event_name}",
-        "severity": "info",
-        "display": {
-            "timeout_ms": 3000,
-            "sticky": False,
-            "play_sound": True
-        }
-    })
+    mapper = mappers.get(
+        event_name,
+        lambda _: {
+            "event_type": "notification",
+            "title": event_name,
+            "message": f"Claude Code event: {event_name}",
+            "severity": "info",
+            "display": {"timeout_ms": 3000, "sticky": False, "play_sound": True},
+        },
+    )
 
-    # Build event
     event = mapper(hook_data)
-    event.update({
-        "session_id": session_id,
-        "source": "claude-hook"
-    })
+    event.update({"session_id": session_id, "source": "claude-hook"})
 
-    # Add terminal hwnd hint captured at hook time (best-effort).
-    # This is much more reliable than notifier-side "current foreground" guessing.
     hwnd_hint = _get_foreground_window_handle()
     if hwnd_hint:
         class_hint = _get_class_name(hwnd_hint)
         title_hint = _get_window_text(hwnd_hint)
-
-        # Only keep hint when foreground window itself is terminal-like.
         if _looks_like_terminal_window(class_hint, title_hint):
             event["terminal_hwnd_hint"] = hwnd_hint
             pid_hint = _get_window_pid(hwnd_hint)
@@ -256,68 +260,33 @@ def map_hook_to_event(hook_data: Dict) -> Dict:
 
 
 def send_event(event: Dict) -> bool:
-    """
-    Send event to notifier service via HTTP POST.
-
-    Args:
-        event: Unified event dictionary
-
-    Returns:
-        True if sent successfully, False otherwise
-    """
+    """Send event to notifier service via HTTP POST."""
     try:
         data = json.dumps(event).encode("utf-8")
         req = urllib.request.Request(
             NOTIFIER_URL,
             data=data,
-            headers={
-                "Content-Type": "application/json"
-            },
-            method="POST"
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
-
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-            return resp.status == 200
-
-    except urllib.error.URLError:
-        # Notifier not running - silent fail is OK
-        return False
-    except urllib.error.HTTPError:
-        # Server error but notifier is running
-        return False
-    except (TimeoutError, OSError):
-        # Network/timeout error
-        return False
-    except Exception:
-        # Any other error - don't crash Claude
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as response:
+            return response.status == 200
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, Exception):
         return False
 
 
 def main() -> None:
-    """Main entry point for hook script."""
+    """Legacy direct hook entry point (without bootstrap)."""
     try:
-        # Read hook payload from stdin with size limit
         input_data = sys.stdin.read(MAX_STDIN_READ)
         if not input_data:
-            # No input, nothing to do
             sys.exit(0)
 
         hook_data = json.loads(input_data)
-
-        # Map to unified event format
         event = map_hook_to_event(hook_data)
-
-        # Send to notifier (may fail silently)
         send_event(event)
-
-        # Always exit 0 - don't block Claude
-        sys.exit(0)
-
-    except json.JSONDecodeError:
-        # Invalid JSON - exit gracefully
         sys.exit(0)
     except Exception:
-        # Any other error - don't crash Claude
         sys.exit(0)
 
 

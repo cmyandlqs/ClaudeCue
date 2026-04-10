@@ -11,3 +11,5 @@ build/
 # ccCue specific
 config/settings.json
 *.log
+.pytest_temp/
+tests/.state_manager_tmp/
