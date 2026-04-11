@@ -20,11 +20,13 @@ def _print_doctor_result(result: dict, as_json: bool) -> None:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
-    status = "OK" if result.get("ok") else "ISSUES"
-    print(f"doctor: {status}")
+    overall = str(result.get("overall", "PASS" if result.get("ok") else "FAIL")).upper()
+    print(f"doctor: {overall}")
     for check in result.get("checks", []):
-        mark = "[OK]" if check.get("ok") else "[FAIL]"
+        mark = f"[{check.get('level', 'PASS')}]"
         print(f"{mark} {check.get('name')}: {check.get('detail')}")
+        if (not check.get("ok")) and check.get("fix"):
+            print(f"      fix: {check.get('fix')}")
 
 
 def build_parser() -> argparse.ArgumentParser:

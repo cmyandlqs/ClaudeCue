@@ -17,6 +17,9 @@ import urllib.error
 
 MANAGED_EVENTS = ("Notification", "Stop", "PermissionRequest")
 UNSAFE_COMMAND_CHARS = set(";&|`\n\r")
+CHECK_LEVEL_FAIL = "FAIL"
+CHECK_LEVEL_WARN = "WARN"
+CHECK_LEVEL_PASS = "PASS"
 
 
 @dataclass
@@ -242,66 +245,102 @@ class SettingsStateManager:
     def doctor(self, expected_hook_command: Optional[str] = None, notifier_port: int = 19527) -> Dict[str, Any]:
         checks: List[Dict[str, Any]] = []
 
+        def add_check(name: str, ok: bool, detail: str, level_on_fail: str, fix: str | None = None) -> None:
+            level = CHECK_LEVEL_PASS if ok else level_on_fail
+            check: Dict[str, Any] = {"name": name, "ok": ok, "detail": detail, "level": level}
+            if fix and not ok:
+                check["fix"] = fix
+            checks.append(check)
+
         settings_ok = self.settings_path.exists()
-        checks.append(
-            {
-                "name": "settings_exists",
-                "ok": settings_ok,
-                "detail": str(self.settings_path),
-            }
+        add_check(
+            "settings_exists",
+            settings_ok,
+            str(self.settings_path),
+            CHECK_LEVEL_FAIL,
+            "Run: python -m cli.main install --source . --target \"%LOCALAPPDATA%\\ccCue\"",
         )
 
         parsed_settings: Optional[Dict[str, Any]] = None
         if settings_ok:
             try:
                 parsed_settings = self._load_settings_or_empty()
-                checks.append({"name": "settings_json_valid", "ok": True, "detail": "valid json"})
+                add_check("settings_json_valid", True, "valid json", CHECK_LEVEL_FAIL)
             except Exception as exc:
-                checks.append({"name": "settings_json_valid", "ok": False, "detail": str(exc)})
+                add_check(
+                    "settings_json_valid",
+                    False,
+                    str(exc),
+                    CHECK_LEVEL_FAIL,
+                    "Run: python -m cli.main restore --latest",
+                )
 
         if parsed_settings is not None:
             hooks = parsed_settings.get("hooks")
             if not isinstance(hooks, dict):
-                checks.append({"name": "hooks_object_valid", "ok": False, "detail": "settings.hooks is not object"})
+                add_check(
+                    "hooks_object_valid",
+                    False,
+                    "settings.hooks is not object",
+                    CHECK_LEVEL_FAIL,
+                    "Run: python -m cli.main restore --latest",
+                )
             else:
                 for event in MANAGED_EVENTS:
                     value = hooks.get(event)
                     ok, detail = self._validate_hook_entry_shape(value)
-                    checks.append({"name": f"hook_shape_{event}", "ok": ok, "detail": detail})
+                    add_check(
+                        f"hook_shape_{event}",
+                        ok,
+                        detail,
+                        CHECK_LEVEL_FAIL,
+                        "Run: python -m cli.main install --source . --target \"%LOCALAPPDATA%\\ccCue\"",
+                    )
 
                     if expected_hook_command:
                         cmd_ok = self._extract_hook_command(value) == expected_hook_command
-                        checks.append(
-                            {
-                                "name": f"hook_command_match_{event}",
-                                "ok": cmd_ok,
-                                "detail": self._extract_hook_command(value) or "missing",
-                            }
+                        add_check(
+                            f"hook_command_match_{event}",
+                            cmd_ok,
+                            self._extract_hook_command(value) or "missing",
+                            CHECK_LEVEL_FAIL,
+                            "Run: python -m cli.main install --source . --target \"%LOCALAPPDATA%\\ccCue\"",
                         )
 
         backup_ok, backup_detail = self._check_backup_index_integrity()
-        checks.append({"name": "backup_index_integrity", "ok": backup_ok, "detail": backup_detail})
+        add_check(
+            "backup_index_integrity",
+            backup_ok,
+            backup_detail,
+            CHECK_LEVEL_WARN,
+            "Run: python -m cli.main uninstall --purge",
+        )
 
         notifier_ok = self._check_notifier_health(notifier_port)
-        checks.append(
-            {
-                "name": "notifier_health",
-                "ok": notifier_ok,
-                "detail": f"http://127.0.0.1:{notifier_port}/health",
-            }
+        add_check(
+            "notifier_health",
+            notifier_ok,
+            f"http://127.0.0.1:{notifier_port}/health",
+            CHECK_LEVEL_WARN,
+            "Trigger a Claude hook event, or start manually: python -m notifier.main",
         )
 
         port_open = self._is_port_open("127.0.0.1", notifier_port)
-        checks.append(
-            {
-                "name": "port_occupied",
-                "ok": port_open,
-                "detail": f"127.0.0.1:{notifier_port}",
-            }
+        add_check(
+            "port_occupied",
+            port_open,
+            f"127.0.0.1:{notifier_port}",
+            CHECK_LEVEL_WARN,
+            "Check notifier process and retry: python -m cli.main doctor --json",
         )
 
-        all_ok = all(item["ok"] for item in checks)
-        return {"ok": all_ok, "checks": checks}
+        overall = CHECK_LEVEL_PASS
+        if any((not c["ok"]) and c["level"] == CHECK_LEVEL_FAIL for c in checks):
+            overall = CHECK_LEVEL_FAIL
+        elif any((not c["ok"]) and c["level"] == CHECK_LEVEL_WARN for c in checks):
+            overall = CHECK_LEVEL_WARN
+
+        return {"ok": overall != CHECK_LEVEL_FAIL, "overall": overall, "checks": checks}
 
     def _validate_post_write(self, hook_command: str) -> None:
         settings = self._load_settings_or_empty()
