@@ -20,7 +20,7 @@ Output installer:
 ## Runtime behavior
 
 - Install phase runs:
-  - `python -m cli.main install --project-root "{app}"`
+  - `python -m cli.main install --source "{app}" --target "{app}"`
 - Uninstall phase runs:
   - `python -m cli.main uninstall --purge`
 

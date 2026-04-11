@@ -283,7 +283,7 @@ class NotifierApp:
             pass
         self.hotkey_registered = False
 
-    def _handle_interrupt_signal(self, signum, frame):
+    def _handle_interrupt_signal(self, signum, _frame):
         """Handle Ctrl+C/SIGBREAK for graceful shutdown."""
         logger.info("Received interrupt signal %s", signum)
         self._on_quit()

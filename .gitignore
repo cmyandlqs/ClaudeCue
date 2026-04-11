@@ -13,3 +13,6 @@ config/settings.json
 *.log
 .pytest_temp/
 tests/.state_manager_tmp/
+
+# temp smoke runs
+.cli_smoke*/

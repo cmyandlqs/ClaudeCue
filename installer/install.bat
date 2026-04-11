@@ -9,7 +9,7 @@ echo ========================================
 echo.
 
 pushd "%PROJECT_ROOT%"
-python -m cli.main install --project-root "%PROJECT_ROOT%"
+python -m cli.main install --source "%PROJECT_ROOT%" --target "%PROJECT_ROOT%"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 if %EXIT_CODE% NEQ 0 (

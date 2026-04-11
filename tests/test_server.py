@@ -5,14 +5,12 @@ import json
 import time
 import urllib.request
 import urllib.error
-import pytest
 from sys import path
-from queue import Queue
 
 # Add parent directory to path for imports
 path.insert(0, ".")
 
-from notifier.server import NotifierServer, create_handler
+from notifier.server import NotifierServer
 
 
 class TestNotifierServer:
@@ -141,7 +139,7 @@ class TestNotifierServer:
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=1) as resp:
+            with urllib.request.urlopen(req, timeout=1):
                 pass
 
             # Give callback time to execute

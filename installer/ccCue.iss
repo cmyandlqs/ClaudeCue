@@ -45,7 +45,7 @@ Name: "{autoprograms}\ccCue Health Check"; Filename: "{cmd}"; Parameters: "/C cd
 Name: "{autodesktop}\ccCue Health Check"; Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main doctor"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main install --project-root ""{app}"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuring Claude hooks..."
+Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main install --source ""{app}"" --target ""{app}"""; Flags: runhidden waituntilterminated; StatusMsg: "Installing ccCue runtime and configuring Claude hooks..."
 Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main doctor"; Flags: postinstall shellexec skipifsilent; Description: "Run ccCue doctor"
 
 [UninstallRun]

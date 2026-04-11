@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from config.state_manager import SettingsStateManager
+from installer.runtime_installer import install_runtime
 
 
 def _project_root() -> Path:
@@ -29,9 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cccue", description="ccCue productization CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    install_p = sub.add_parser("install", help="Install/update ccCue hook configuration")
+    install_p = sub.add_parser("install", help="Install runtime + configure hooks")
     install_p.add_argument("--python-exe", default=sys.executable)
-    install_p.add_argument("--project-root", default=str(_project_root()))
+    install_p.add_argument("--source", default=str(_project_root()), help="Runtime source directory")
+    install_p.add_argument("--target", default=None, help="Runtime install target (default: %LOCALAPPDATA%\\ccCue)")
+    install_p.add_argument("--project-root", default=None, help="DEPRECATED: config-only mode root")
 
     uninstall_p = sub.add_parser("uninstall", help="Uninstall ccCue configuration")
     uninstall_p.add_argument("--no-restore", action="store_true", help="Do not restore baseline snapshot")
@@ -59,10 +63,32 @@ def main(argv: list[str] | None = None) -> int:
     manager = SettingsStateManager()
 
     if args.command == "install":
-        project_root = Path(args.project_root)
-        bootstrap_script = project_root / "hooks" / "bootstrap.py"
+        # Backward-compatible mode: only configure hooks against existing root
+        if args.project_root:
+            project_root = Path(args.project_root)
+            bootstrap_script = project_root / "hooks" / "bootstrap.py"
+            hook_command = manager.build_hook_command(args.python_exe, str(bootstrap_script))
+            result = manager.install(hook_command)
+            print(result.message)
+            if result.data:
+                print(json.dumps(result.data, ensure_ascii=False, indent=2))
+            return 0 if result.ok else 1
+
+        source_root = Path(args.source)
+        default_target = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ccCue"
+        target_root = Path(args.target) if args.target else default_target
+
+        runtime_result = install_runtime(source_root, target_root)
+        if not runtime_result.ok:
+            print(runtime_result.message)
+            return 1
+
+        bootstrap_script = target_root / "hooks" / "bootstrap.py"
         hook_command = manager.build_hook_command(args.python_exe, str(bootstrap_script))
         result = manager.install(hook_command)
+        if result.data:
+            result.data["runtime_target"] = str(target_root)
+            result.data["runtime_source"] = str(source_root)
         print(result.message)
         if result.data:
             print(json.dumps(result.data, ensure_ascii=False, indent=2))
