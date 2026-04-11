@@ -2,7 +2,7 @@
 ; Prefer bundled runtime python when available.
 
 #define MyAppName "ccCue"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "ccCue"
 #define MyAppExeName ""
 

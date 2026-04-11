@@ -71,6 +71,7 @@ cd installer && build_inno.bat
 
 - Notifier port: `19527` (defined in both `hooks/notify_hook.py` and `notifier/server.py`)
 - Managed hook events: `Notification`, `Stop`, `PermissionRequest`
+- Global hotkey candidates: `Ctrl+Alt+Space`, `Ctrl+Alt+Q`, `Ctrl+Shift+Space` (with fallback chain)
 - Log path: `%LOCALAPPDATA%\ccCue\logs\notifier.log` (rotating, 2MB x 5)
 - Runtime data: `%LOCALAPPDATA%\ccCue\` (backups in `backups/`, state in `state/`)
 - Session cache: `%LOCALAPPDATA%\ccCue\runtime\seen_sessions.json` (max 200 entries)
@@ -82,6 +83,18 @@ cd installer && build_inno.bat
 - **pytest** (>=8.0) — testing
 
 Target platform: **Windows 10/11 with Windows Terminal only**.
+
+### Installation Paths
+
+1. **EXE installer** (end users): Inno Setup builds via `installer/build_inno.bat` + `installer/ccCue.iss`
+2. **Source install** (developers): `python -m cli.main install --source . --target <dir>`
+
+### Static Analysis
+
+```bash
+ruff check .          # linting
+vulture .             # dead code detection
+```
 
 ## Constraints
 
@@ -99,5 +112,7 @@ Tests live in `tests/` and cover:
 - `test_state_manager.py` — settings backup/restore/install/uninstall/doctor
 - `test_bootstrap.py` — bootstrap notifier startup logic
 - `test_runtime_installer.py` — runtime file installation
+- `test_cli.py` — CLI interface commands
+- `test_doctor.py` — health check diagnostics
 
 Tests use `pytest` with `tmp_path` fixtures. No external services or GUI needed for tests.
