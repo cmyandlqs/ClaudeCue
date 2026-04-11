@@ -15,6 +15,21 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _resolve_python_exe(explicit_python: str | None, target_root: Path) -> str:
+    if explicit_python and explicit_python.strip():
+        return explicit_python
+
+    bundled_python = target_root / "runtime" / "python" / "python.exe"
+    if bundled_python.exists():
+        return str(bundled_python)
+
+    local_venv_python = target_root / ".venv" / "Scripts" / "python.exe"
+    if local_venv_python.exists():
+        return str(local_venv_python)
+
+    return sys.executable
+
+
 def _print_doctor_result(result: dict, as_json: bool) -> None:
     if as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -34,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     install_p = sub.add_parser("install", help="Install runtime + configure hooks")
-    install_p.add_argument("--python-exe", default=sys.executable)
+    install_p.add_argument("--python-exe", default=None, help="Override python executable used for hook command")
     install_p.add_argument("--source", default=str(_project_root()), help="Runtime source directory")
     install_p.add_argument("--target", default=None, help="Runtime install target (default: %LOCALAPPDATA%\\ccCue)")
     install_p.add_argument("--project-root", default=None, help="DEPRECATED: config-only mode root")
@@ -45,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor_p = sub.add_parser("doctor", help="Run health checks")
     doctor_p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
-    doctor_p.add_argument("--python-exe", default=sys.executable)
+    doctor_p.add_argument("--python-exe", default=None, help="Override python executable used for expected command")
     doctor_p.add_argument("--project-root", default=str(_project_root()))
 
     restore_p = sub.add_parser("restore", help="Restore settings from backup")
@@ -69,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.project_root:
             project_root = Path(args.project_root)
             bootstrap_script = project_root / "hooks" / "bootstrap.py"
-            hook_command = manager.build_hook_command(args.python_exe, str(bootstrap_script))
+            python_exe = _resolve_python_exe(args.python_exe, project_root)
+            hook_command = manager.build_hook_command(python_exe, str(bootstrap_script))
             result = manager.install(hook_command)
             print(result.message)
             if result.data:
@@ -86,7 +102,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         bootstrap_script = target_root / "hooks" / "bootstrap.py"
-        hook_command = manager.build_hook_command(args.python_exe, str(bootstrap_script))
+        python_exe = _resolve_python_exe(args.python_exe, target_root)
+        hook_command = manager.build_hook_command(python_exe, str(bootstrap_script))
         result = manager.install(hook_command)
         if result.data:
             result.data["runtime_target"] = str(target_root)
@@ -106,7 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         project_root = Path(args.project_root)
         bootstrap_script = project_root / "hooks" / "bootstrap.py"
-        expected_command = manager.build_hook_command(args.python_exe, str(bootstrap_script))
+        python_exe = _resolve_python_exe(args.python_exe, project_root)
+        expected_command = manager.build_hook_command(python_exe, str(bootstrap_script))
         result = manager.doctor(expected_hook_command=expected_command)
         _print_doctor_result(result, as_json=args.json)
         return 0 if result.get("ok") else 1

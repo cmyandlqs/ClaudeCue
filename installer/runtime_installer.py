@@ -7,6 +7,7 @@ from pathlib import Path
 
 RUNTIME_DIRS = ("hooks", "notifier", "cli", "config", "installer")
 RUNTIME_FILES = ("requirements.txt", "AGENTS.md", "CLAUDE.md")
+OPTIONAL_RUNTIME_DIRS = ("runtime",)
 
 
 @dataclass
@@ -46,6 +47,11 @@ def install_runtime(source_root: Path, target_root: Path) -> RuntimeInstallResul
     try:
         for dirname in RUNTIME_DIRS:
             _copy_dir(source_root / dirname, staging / dirname)
+
+        for dirname in OPTIONAL_RUNTIME_DIRS:
+            optional_src = source_root / dirname
+            if optional_src.exists():
+                _copy_dir(optional_src, staging / dirname)
 
         for filename in RUNTIME_FILES:
             src = source_root / filename

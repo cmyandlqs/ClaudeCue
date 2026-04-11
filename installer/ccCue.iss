@@ -1,5 +1,5 @@
 ; Inno Setup script for ccCue
-; Requires Python available in PATH (python command)
+; Prefer bundled runtime python when available.
 
 #define MyAppName "ccCue"
 #define MyAppVersion "0.2.0"
@@ -36,41 +36,19 @@ Source: "..\cli\*"; DestDir: "{app}\cli"; Flags: recursesubdirs createallsubdirs
 Source: "..\config\*"; DestDir: "{app}\config"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\installer\install.bat"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "..\installer\uninstall.bat"; DestDir: "{app}\installer"; Flags: ignoreversion
+Source: "..\installer\cccue.bat"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\AGENTS.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CLAUDE.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: recursesubdirs createallsubdirs ignoreversion skipifsourcedoesntexist
 
 [Icons]
-Name: "{autoprograms}\ccCue Health Check"; Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main doctor"; WorkingDir: "{app}"
-Name: "{autodesktop}\ccCue Health Check"; Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main doctor"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\ccCue Health Check"; Filename: "{app}\installer\cccue.bat"; Parameters: "doctor"; WorkingDir: "{app}"
+Name: "{autodesktop}\ccCue Health Check"; Filename: "{app}\installer\cccue.bat"; Parameters: "doctor"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main install --source ""{app}"" --target ""{app}"""; Flags: runhidden waituntilterminated; StatusMsg: "Installing ccCue runtime and configuring Claude hooks..."
-Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main doctor"; Flags: postinstall shellexec skipifsilent; Description: "Run ccCue doctor"
+Filename: "{app}\installer\install.bat"; Parameters: "--no-pause"; Flags: runhidden waituntilterminated; StatusMsg: "Installing ccCue runtime and configuring Claude hooks..."
+Filename: "{app}\installer\cccue.bat"; Parameters: "doctor"; Flags: postinstall shellexec skipifsilent; Description: "Run ccCue doctor"
 
 [UninstallRun]
-Filename: "{cmd}"; Parameters: "/C cd /d ""{app}"" && python -m cli.main uninstall --purge"; Flags: runhidden waituntilterminated; RunOnceId: "ccCueUninstallCleanup"
-
-[Code]
-function IsPythonAvailable(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result := Exec(ExpandConstant('{cmd}'), '/C python --version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  if Result then
-  begin
-    Result := (ResultCode = 0);
-  end;
-end;
-
-function InitializeSetup(): Boolean;
-begin
-  if not IsPythonAvailable() then
-  begin
-    MsgBox('Python was not found in PATH. Please install Python 3.10+ and ensure "python" command is available before installing ccCue.', mbError, MB_OK);
-    Result := False;
-    exit;
-  end;
-
-  Result := True;
-end;
+Filename: "{app}\installer\uninstall.bat"; Parameters: "--no-pause"; Flags: runhidden waituntilterminated; RunOnceId: "ccCueUninstallCleanup"

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 1. Install Inno Setup 6.
-2. Ensure `python` command is available in PATH on target machine.
+2. Optional: provide bundled runtime at `runtime/python/python.exe` to avoid system Python dependency.
 
 ## Build
 
@@ -20,12 +20,12 @@ Output installer:
 ## Runtime behavior
 
 - Install phase runs:
-  - `python -m cli.main install --source "{app}" --target "{app}"`
+  - `{app}\installer\install.bat --no-pause`
 - Uninstall phase runs:
-  - `python -m cli.main uninstall --purge`
+  - `{app}\installer\uninstall.bat --no-pause`
 
 ## Notes
 
 - Installer copies runtime code (`hooks`, `notifier`, `cli`, `config`, `installer`) into `%LOCALAPPDATA%\ccCue`.
-- If Python is missing, setup aborts with guidance.
+- If bundled runtime exists, installer/CLI prefer it first (`runtime\python\python.exe`).
 - `--purge` removes ccCue backup/state files after uninstall.
